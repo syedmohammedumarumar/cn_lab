@@ -1,41 +1,79 @@
-name: 🟢 Smart Daily Commits
+name: 🟢 Smart Random Contributions
 
 on:
   schedule:
-    - cron: '0 3,9,15 * * *'   # 3 times per day
+    - cron: '0 */6 * * *'   # Runs every 6 hours
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  daily-commit:
+  smart-commit:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Check if weekend
+      - name: Decide if today should have activity
         run: |
-          DAY=$(date +%u)
-          if [ "$DAY" -ge 6 ]; then
-            echo "Weekend - skipping commit"
+          WEEK=$(date +%V)
+          YEAR=$(date +%Y)
+
+          # Create a repeatable seed per week
+          SEED=$((10#$YEAR + 10#$WEEK))
+
+          # Active days target: 3 to 7
+          ACTIVE_DAYS=$(( (SEED % 5) + 3 ))
+
+          TODAY=$(date +%u)
+
+          # Simple probability based on desired active days
+          CHANCE=$(( ACTIVE_DAYS * 14 ))
+
+          R=$(( RANDOM % 100 ))
+
+          if [ "$R" -ge "$CHANCE" ]; then
             echo "SKIP=true" >> $GITHUB_ENV
+            echo "No activity today"
+          else
+            echo "ACTIVE=true" >> $GITHUB_ENV
+            echo "Activity day"
           fi
 
-      - name: Make update with variation
-        if: env.SKIP != 'true'
-        run: |
-          echo "$(date '+%Y-%m-%d %H:%M:%S') — update $RANDOM" >> log.txt
-
-      - name: Commit and push
-        if: env.SKIP != 'true'
+      - name: Generate commits
+        if: env.ACTIVE == 'true'
         run: |
           git config --global user.name "syedmohammedumarumar"
           git config --global user.email "mohammedumarsyed47@gmail.com"
 
-          git add log.txt
-          git commit -m "update — $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes"
+          COUNT=$(( (RANDOM % 4) + 1 ))
 
-          git push origin HEAD:main
+          MESSAGES=(
+            "update project"
+            "minor improvements"
+            "bug fixes"
+            "refactor code"
+            "cleanup files"
+            "update docs"
+            "improve structure"
+            "small changes"
+            "maintenance update"
+            "progress update"
+          )
+
+          for ((i=1; i<=COUNT; i++))
+          do
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - $RANDOM" >> log.txt
+
+            git add log.txt
+
+            MSG_INDEX=$(( RANDOM % ${#MESSAGES[@]} ))
+
+            git commit -m "${MESSAGES[$MSG_INDEX]} $(date +%s)" || true
+
+            git push origin HEAD:main
+
+            sleep $(( (RANDOM % 20) + 5 ))
+          done
